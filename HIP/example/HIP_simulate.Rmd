@@ -1,0 +1,216 @@
+---
+title: "MIL_simulate"
+author: "CHUNYI"
+date: "2023-07-26"
+output: html_document
+---
+# Import package
+```{r package}
+library(tidyverse)
+library(milr)
+library(caret)
+library(ggplot2)
+```
+
+# Pattern setting
+```{r para set}
+shape <- c(0,1,1, 0,0,1, 1,0,0)
+PATTERN_Shape <- matrix(shape, 3, 3)
+image_size <- c(10,10)
+```
+
+# function
+```{r function}
+#### Simulate_Image ############################################################
+Simulate_Image <- function(n, img_h = 10, img_w = 10,
+                           pattern_shape = PATTERN_Shape, random_num = runif(1000)){
+  Pat_h <- nrow(pattern_shape); Pat_w <- ncol(pattern_shape) 
+  W <- array(runif((n*img_h*img_w), min = 0, max = 1), dim = c(n, img_h, img_w)) 
+  Y_num <- rpois(n, 0.72)
+  for (count in 1:n){
+    if(Y_num[count]>0){
+      Y_i <- sample(1:(img_h-Pat_h+1), Y_num[count])
+      Y_j <- sample(1:(img_w-Pat_w+1), Y_num[count])
+      for(k in 1:Y_num[count]){
+        r_p <- PATTERN_Shape * sample(random_num, 1)
+        W[count,,][Y_i[k]:(Y_i[k]+(Pat_h-1)), Y_j[k]:(Y_j[k]+(Pat_w-1))]<- r_p
+        }
+    }else{
+      NULL
+    }
+  }
+  return(list(image = W, label = Y_num))
+}
+
+#### Reshape Image #############################################################
+ReShape_Image <- function(X, ksize = KS){
+  x_dim <- dim(X)
+  W <- matrix(0, 
+              (x_dim[2]-ksize[1]+1)*(x_dim[3]-ksize[2]+1)*(x_dim[1]), 
+              ksize[1]*ksize[2])
+  count <- 1
+  for(k in 1:(x_dim[1])){
+    for(j in 1:(x_dim[2]-ksize[2]+1)){
+      for(i in 1:(x_dim[3]-ksize[1]+1)){
+        W[count,] <- c(X[k, i:(i+ksize[1]-1), j:(j+ksize[2]-1)])
+        count <- count+1
+      }
+    }
+  }
+  return(W)
+}
+
+
+#### Data ######################################################################
+Milr_Data <- function(Data , ksize = KS, Center = NA, Scaling = NA, c_ins = 0.05){
+  data <-  Data
+  Y <- ifelse(data$label == 0,0,1) %>% rep(each = (10-ksize[1]+1)*(10-ksize[2]+1))
+  X <- data$image %>% ReShape_Image(ksize)
+  X_sharp <- X
+  count <- 1
+  while (count < nrow(X)+1) {
+    if (sd(X_sharp[count,]) >= c_ins) {
+      X_sharp[count,] <- (X[count,] - min(X[count,]))/(max(X[count,]) - min(X[count,]))
+    }else{
+      X_sharp[count,] <- matrix(1, 1, ksize[1]*ksize[2])
+    }
+    count <- count + 1
+  }
+  
+  if(is.na(Center) && is.na(Scaling)){
+    Center <- apply(X_sharp, 2, mean)
+    Scaling <- apply(X_sharp, 2, sd)
+  }
+  
+  G <- t(t(X_sharp) - Center) %*% diag(1/Scaling)
+  Bag <- rep(1:length(data$label), each = (10-ksize[1]+1)*(10-ksize[2]+1))
+  Bag_loc <- ifelse(data$label == 0, 0, 1)
+  Ins_loc <- data$pat_loc
+  Data <- list(y = Y, g = G, x = X_sharp, bag = Bag, img = data$image,
+               center = Center, scaling = Scaling, 
+               ins_loc = Ins_loc, bag_loc = Bag_loc)
+  return(Data)
+}
+
+
+#### predict weight matrix #####################################################
+PWM <- function(img_s, k_s){
+  pwm_m <- matrix(0, img_s[1], img_s[2])
+  for (i in 1:img_s[1]) {
+    for (j in 1:img_s[2]) {
+      i_med <- img_s[1]%/%2; j_med <- img_s[2]%/%2 
+      i_index <- ifelse(i > i_med, img_s[1]+1-i, i)
+      j_index <- ifelse(j > j_med, img_s[2]+1-j, j)
+      if (i_index >= k_s[1] && j_index >= k_s[2]) {
+        pwm_m[i, j] <- k_s[1]*k_s[2]
+      } else if (i_index %in% k_s[1]:i_med | j_index %in% k_s[2]:j_med) {
+        pwm_m[i, j] <- min(i_index, j_index) * ifelse(i_index>j_index, k_s[1], k_s[2])
+      } else {
+        pwm_m[i, j] <- ifelse(i_index*j_index > k_s[1]*k_s[2], 
+                              k_s[1]*k_s[2], i_index*j_index) 
+      }
+    }
+  }
+  return(pwm_m)
+}
+
+#### Topographic map  ##########################################################
+Feature_Image <- function(X_data, img_size, ksize, coef){
+  W <- matrix(0, img_size[1], img_size[2])
+  row <- rep(1:(img_size[1]-ksize[1]+1),
+             (img_size[2]-ksize[2]+1))
+  col <- rep(1:(img_size[2]-ksize[2]+1), 
+             each = (img_size[1]-ksize[1]+1))
+  Q <- rbind(row, col)
+  for(i in 1:dim(X_data)[1]){
+    w_p <- matrix(0, img_size[1], img_size[2])
+    link <- exp(c(1, X_data[i,]) %*% coef)
+    response <- link/(1+link)
+    w_p[Q[1,i]:(Q[1,i]+ksize[1]-1), Q[2,i]:(Q[2,i]+ksize[2]-1)] <- response
+    W <- W + w_p
+  }
+  return(W)
+}
+```
+
+# model training
+```{r milr model}
+mil_train <- Simulate_Image(1000)
+mil_test <- Simulate_Image(500)
+
+Train_Data <- Milr_Data(Data = mil_train, ksize = c(kernel_value[j], kernel_value[j]))
+Test_Data <- Milr_Data(Data = mil_test,
+                       ksize = c(kernel_value[j], kernel_value[j]),
+                       Center = Train_Data$center, 
+                       Scaling = Train_Data$scaling)
+milr_fit <- milr(y = Train_Data$y, 
+                 x = Train_Data$g, 
+                 bag = Train_Data$bag)
+
+milr_pred_bag <- predict(milr_fit,
+                         newdata = Test_Data$g,
+                         bag_newdata = Test_Data$bag,
+                         type = "bag")
+```
+
+# model imformation
+```{r model and output}
+coef(milr_fit)
+milr_conf_bag$overall
+milr_conf_bag$byClass
+```
+
+# CMILR visualization
+```{r predict visualization}
+bag_num <- (image_size[1]-kernel_value[1]+1)*(image_size[2]-kernel_value[2]+1)
+image_number <- which(Test_Data$bag_loc == 1)   # samples with features 
+image_sample <- sample(image_number, size = 1, replace = FALSE) 
+
+
+PATTERN <- coef(milr_fit)[-1] %>% matrix(kernel_value[1], kernel_value[2])
+img_data <- mil_test$image[image_sample,,]
+img_ins_num <- which(Test_Data$bag == image_sample) 
+par(mfrow = c(2, 2), pty = "s")
+
+# Original Plot
+image(t(apply(img_data, 2, rev)), main = "Original Plot", axes=FALSE)
+
+# Coef matrix
+c_matrix <- matrix(coef(milr_fit)[-1], kernel_value[1], kernel_value[2])
+image(t(apply(c_matrix, 2, rev)), 
+      main = paste0("Coefficient matrix (", round(coef(milr_fit)[1], 4), ")"),
+      useRaster=TRUE, axes=FALSE)
+
+# Predict Plot
+img_data_ins <- matrix(0, image_size[1], image_size[2])
+milr_pred_ins <- predict(milr_fit,
+                         newdata = Test_Data$g[img_ins_num,],
+                         bag_newdata = rep(1, bag_num),
+                         type = "instance") %>% as.numeric() 
+
+image(t(apply(img_data, 2, rev)), 
+      main = paste0("Instance predict location"), axes=FALSE)
+Pat_loc <- which(milr_pred_ins == 1)
+if(length(Pat_loc) > 0){
+  for (k in 1:length(Pat_loc)) {
+    row <- Pat_loc[k] %% (image_size[1]-kernel_value[1]+1)
+    row <- ifelse(row == 0, (image_size[1]-kernel_value[1]+1), row)
+    col <- (Pat_loc[k] %/% (image_size[2]-kernel_value[2]+1)) + 1 
+    lines((-0.06+(col-1)*0.11) + c(0,  0,  1, 1, 0)*(3/10), 
+          (-0.06+(10-row+1)*0.11) + c(0, -1, -1, 0, 0)*(3/10), 
+          lwd = 3, col = "midnightblue")
+    }
+  }else{
+  NULL
+}
+
+# Topographic map
+Topo_X <- Feature_Image(Test_Data$g[img_ins_num,], image_size, 
+                        kernel_value, coef(milr_fit))
+Topo_PWM <- PWM(image_size, kernel_value)
+image(t(apply(Topo_X, 2,rev)), main = "Feature probability", axes=FALSE)
+
+
+
+```
+
