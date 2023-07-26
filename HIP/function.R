@@ -1,10 +1,11 @@
-# setting
+# Setting
 shape <- c(1,1,1, 1,1,1, 1,1,1)
 PATTERN_Shape <- matrix(shape, 3, 3)
 kernel_value <- c(3, 3)
 image_size <- c(10, 10)
 
-# function
+# Function
+## Simulate image
 Simulate_Image <- function(n, img_h = 10, img_w = 10,
                            pattern_shape = PATTERN_Shape, random_num = runif(1000)){
   Pat_h <- nrow(pattern_shape); Pat_w <- ncol(pattern_shape) 
@@ -25,7 +26,8 @@ Simulate_Image <- function(n, img_h = 10, img_w = 10,
   return(list(image = W, label = Y_num))
 }
 
-# predict weight matrix
+## Predict weight matrix
+### Calculate the number of occurrences per pixel
 PWM <- function(img_s, k_s){
   pwm_m <- matrix(0, img_s[1], img_s[2])
   for (i in 1:img_s[1]) {
@@ -46,7 +48,8 @@ PWM <- function(img_s, k_s){
   return(pwm_m)
 }
 
-# Topographic map
+## Topographic map
+### Plot CMILR's prediction onto a blank background with an all-black pattern.
 Feature_Image <- function(X_data, img_size, ksize, coef){
   W <- matrix(0, img_size[1], img_size[2])
   row <- rep(1:(img_size[1]-ksize[1]+1),
