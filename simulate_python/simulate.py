@@ -3,11 +3,8 @@ import numpy as np
 import pandas as pd
 import scipy
 import random
-from scipy.stats import poisson,uniform
-import matplotlib.pyplot as plt
-from PIL import Image as im
-import tensorflow as tf
-from tensorflow import keras
+from scipy.stats import poisson, uniform
+
 
 # setting
 kernel_value = np.array([3, 3])
