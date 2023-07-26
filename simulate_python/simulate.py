@@ -1,3 +1,4 @@
+# import package
 import numpy as np
 import pandas as pd
 import scipy
@@ -8,9 +9,11 @@ from PIL import Image as im
 import tensorflow as tf
 from tensorflow import keras
 
+# setting
 kernel_value = np.array([3, 3])
 image_size = np.array([10, 10])
 
+# simulate image
 def Simulate_Image(n, img_h=10, img_w=10, pat_shape=np.ones((3,3))):
     Pat_h = pat_shape.shape[0]; Pat_w = pat_shape.shape[1] 
     W = np.random.random((n, img_h, img_w))
