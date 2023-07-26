@@ -1,3 +1,3 @@
-# CMILR 與 CNN 視覺化比較
-Convolutional Multiple-Instance Learning (CMILR) 模型為結合卷積神經網路 (Convolutional Neural Network) 的資料擷取方式與多實例邏輯斯迴歸 (Multiple-instance Logistic Regression; MILR)。 本篇包含 CMILR 中的位置預測的熱區圖 (Heatmap of being a positive instance; HIP) 與 CNN 中的卷積熱區圖 (Heatmap with Grad-CAM; HGC)。
+# Comparing the Visualization Ability of CNN and CMILR
+Combines the data retrieval method of Convolutional Neural Network (CNN) and Multiple-instance Logistic Regression (MILR) model to perform image recognition. This model is hereafter referred to as convolutional multiple-instance logistic regression (CMILR). By combining these patterns, CMILR has the high accuracy of a CNN and the predictability of a linear model with MILR. After simulations, we found that CMILR can accurately identify the shape of patterns and correctly predict their locations, and has a higher accuracy than CNN。 There include Heatmap of being a positive instance (HIP) in CMILR and Heatmap with Grad-CAM (HGC) in CNN.
 
