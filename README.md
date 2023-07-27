@@ -6,3 +6,6 @@ In addition, we fit model use the package *milr* in R.
 ```r
 library(milr)
 ```
+
+# Reference
+* [milr: Multiple-Instance Logistic Regression with LASSO Penalty](https://cran.r-project.org/web/packages/milr/index.html)
